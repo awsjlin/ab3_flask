@@ -2,15 +2,20 @@ from flask import Flask, jsonify
 app = Flask(__name__)
 
 from flask import Response
-from flask import request
+from flask import request, send_file
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import BotoCoreError, ClientError
 import simplejson as json
 from decimal import Decimal
 from flask_cors import CORS, cross_origin
 from boto3.dynamodb.conditions import Key
+from contextlib import closing
+import os
+from tempfile import gettempdir
 
 tableName = "Films"
+translate = boto3.client(service_name='translate', region_name='us-east-1', use_ssl=True)
+polly = boto3.client(service_name='polly', region_name='us-east-1', use_ssl=True)
 # Flip this boolean to switch between testing or deployment mode
 testing = False
 
@@ -82,6 +87,7 @@ def getTable():
     year = request.args.get('year')
     movie = request.args.get('movie')
     
+    # If year is not None, get all movies
     if year is not None:
         if movie is not None:
 
@@ -121,6 +127,48 @@ def getMovies(table):
         done = start_key is None
     return js
     
+
+@app.route('/translate')
+@cross_origin()
+def translation():
+    table = dynamodb.Table(tableName)
+    movies = getMovies(table)
+    translatedResult = translate.translate_text(Text=movies, SourceLanguageCode="en", TargetLanguageCode="zh")
+    translatedText = translatedResult.get('TranslatedText')
+    print('TranslatedText: ' + translatedText)
+    return Response(translatedText, status=200, mimetype='application/json')
+
+@app.route('/polly')
+@cross_origin()
+def runPolly():
+    table = dynamodb.Table(tableName)
+    movies = getMovies(table)
+    try:
+        print(os.getcwd())
+        print(os.listdir())
+        response = polly.synthesize_speech(Text=movies, OutputFormat="mp3", VoiceId="Joanna")
+        with open('speech.mp3', 'wb') as f:
+            f.write(response['AudioStream'].read())
+            f.close()
+        try:
+            return send_file("speech.mp3", as_attachment=True)
+        except Exception as e:
+            print(e)
+        #file = open('speech.mp3', 'wb')
+        #file.write(response['AudioStream'].read())
+        #file.close()
+    except(BotoCoreError, ClientError) as error:
+        print(error)
+
+    #if response is not None:
+    #    if "AudioStream" in response:
+    ##        with closing(response["AudioStream"]) as stream:
+    #            output = os.path.join(gettempdir(), "speech.mp3")
+    #            
+    #    else:
+    #        print("Could not write to file, exit")
+            
+    return Response("msg:hi", status=200, mimetype='application/json')
 
 @app.route('/getTable')
 @cross_origin()
