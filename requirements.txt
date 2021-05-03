@@ -1,0 +1,5 @@
+Flask==1.0.2
+flask-cors==3.0.10
+boto3==1.17.53 
+mypy-boto3-dynamodb==1.17.53.0
+simplejson==3.17.0
