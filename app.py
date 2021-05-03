@@ -133,10 +133,28 @@ def getMovies(table):
 def translation():
     table = dynamodb.Table(tableName)
     movies = getMovies(table)
-    translatedResult = translate.translate_text(Text=movies, SourceLanguageCode="en", TargetLanguageCode="zh")
-    translatedText = translatedResult.get('TranslatedText')
-    print('TranslatedText: ' + translatedText)
-    return Response(translatedText, status=200, mimetype='application/json')
+    
+    moviesJson = json.loads(movies)
+    #print(movies)
+    #print(moviesJson)
+    
+    for cMovieJSON in moviesJson:
+        #print(cMovieJSON)
+        for key in cMovieJSON:
+            #print("%s | %s" %(key, cMovieJSON[key]))
+            value = cMovieJSON[key]
+            translatedResult = translate.translate_text(Text=str(value), SourceLanguageCode="en", TargetLanguageCode="zh")
+            translatedText = translatedResult.get('TranslatedText')
+            #print('TranslatedText: ' + translatedText)
+            cMovieJSON[key] = translatedText
+            
+    #print(moviesJson)
+
+    jsonStr = json.dumps(moviesJson)
+    #print(jsonStr)
+    #print(json.loads(jsonStr))
+    
+    return Response(jsonStr, status=200, mimetype='application/json')
 
 @app.route('/polly')
 @cross_origin()
@@ -158,17 +176,8 @@ def runPolly():
         #file.write(response['AudioStream'].read())
         #file.close()
     except(BotoCoreError, ClientError) as error:
-        print(error)
-
-    #if response is not None:
-    #    if "AudioStream" in response:
-    ##        with closing(response["AudioStream"]) as stream:
-    #            output = os.path.join(gettempdir(), "speech.mp3")
-    #            
-    #    else:
-    #        print("Could not write to file, exit")
-            
-    return Response("msg:hi", status=200, mimetype='application/json')
+        print(error)       
+    return Response({'message' : 'Did not synthesize speech.'}, status=200, mimetype='application/json')
 
 @app.route('/getTable')
 @cross_origin()
@@ -194,25 +203,20 @@ def getEntry():
 
 @app.route('/putEntry')
 @cross_origin()
-def putEntry():
-    js = json.dumps({'name' : 'put entry'})
+def putEntry(title, year):
+    js = json.dumps({'message' : 'Put movie error.'})
     try:
         table = dynamodb.Table(tableName)
-        response = table.put_item(
+        js = table.put_item(
         Item={
-                'year': 2020,
-                'title': 'Haha the movie',
-                'info': {
-                    'plot': 'No plot',
-                    'rating': 5
-                }
+                'year': year,
+                'title': title
             }
         )
     except:
         js = json.dumps({'name' : 'put entry already exists'})
 
-    resp = Response(js, status=200, mimetype='application/json')
-    return resp
+    return Response(js, status=200, mimetype='application/json')
 
 
 @app.route('/clearEntry')
