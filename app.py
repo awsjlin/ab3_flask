@@ -150,7 +150,7 @@ def translation():
             
     #print(moviesJson)
 
-    jsonStr = json.dumps(moviesJson)
+    jsonStr = json.dumps(moviesJson, ensure_ascii=False).encode('utf8')
     #print(jsonStr)
     #print(json.loads(jsonStr))
     
@@ -188,7 +188,6 @@ def getEntry():
     try:
         response = table.get_item(Key={'year': 2020, 'title': 'Haha the movie'})
     except ClientError as e:
-        print("hi")
         js = json.dumps({'name' : e.response['Error']['Message']}, indent=4)
     else:
         try:
