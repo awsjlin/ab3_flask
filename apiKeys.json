@@ -1,0 +1,12 @@
+{
+ "tenants": [
+    {
+        "groupId" : "free",
+        "apiKey" : "MMvlWv4gPh9kniWJfjMPJ5T5h0s0ep1D2CLjqDSK"
+    },
+    {
+        "groupId" : "paid",
+        "apiKey" : "4TIovpYOER55GGsAw7lyX9c7su4qmsMH3n1AyZm1"
+    }
+ ]
+}

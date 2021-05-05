@@ -19,9 +19,6 @@ polly = boto3.client(service_name='polly', region_name='us-east-1', use_ssl=True
 # Flip this boolean to switch between testing or deployment mode
 testing = False
 groupId = 'groupId'
-groupIdFree = 'free'
-groupIdPaid = 'paid'
-
 
 dynamodb = None
 if testing:
@@ -53,11 +50,14 @@ def home():
 @cross_origin()
 def getKey():
     curGroupId = request.args.get(groupId)
+    
+    #print(tenantKey)
     if curGroupId is not None:
-        if curGroupId == groupIdPaid:
-            return Response("MMvlWv4gPh9kniWJfjMPJ5T5h0s0ep1D2CLjqDSK", status=200, mimetype='text/plain')
-        if curGroupId == groupIdFree:
-            return Response("4TIovpYOER55GGsAw7lyX9c7su4qmsMH3n1AyZm1", status=200, mimetype='text/plain')
+        tenantKey = getTenantKey(curGroupId)
+        print("Tenant key:", tenantKey)
+        if tenantKey is not None:
+            return Response(tenantKey, status=200, mimetype='text/plain')
+
     invalidGroupIdText = json.dumps({"message" : "Invalid groupId, no x-api-key retrieved."})
     return Response(invalidGroupIdText, status=200, mimetype='application/json')
 
@@ -101,7 +101,7 @@ def find():
 def getTable():
     curGroupId = request.args.get(groupId)
     
-    if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
+    if curGroupId is not None and doesTenantExist(curGroupId):
         table = dynamodb.Table(tableName + curGroupId)  
         
         year = request.args.get('year')
@@ -160,7 +160,7 @@ def translation():
     else:
         curLang = "zh"
     
-    if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
+    if curGroupId is not None and doesTenantExist(curGroupId):
         table = dynamodb.Table(tableName + curGroupId)
         
         movies = getMovies(table)
@@ -192,7 +192,7 @@ def translation():
 def runPolly():
     curGroupId = request.args.get(groupId)
     
-    if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
+    if curGroupId is not None and doesTenantExist(curGroupId):
         table = dynamodb.Table(tableName + curGroupId)
         
         movies = getMovies(table)
@@ -318,6 +318,26 @@ def newTable():
     resp = Response(js, status=200, mimetype='application/json')
     return resp
 
+def loadJsonApiKeys():
+    #print(os.getcwd())
+    #print(os.listdir())
+    with open("apiKeys.json") as file:
+        jsonDictionary = json.load(file)
+        return jsonDictionary
+                
+def getTenantKey(group):
+    jsonDictionary = loadJsonApiKeys()
+    if jsonDictionary is not None:
+        for key in jsonDictionary["tenants"]:
+            if key["groupId"] == group:
+                return key["apiKey"]
+
+def doesTenantExist(group):
+    jsonDictionary = loadJsonApiKeys()
+    if jsonDictionary is not None:
+        for key in jsonDictionary["tenants"]:
+            if key["groupId"] == group:
+                return True
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=80)
