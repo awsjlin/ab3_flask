@@ -14,7 +14,6 @@ import os
 from tempfile import gettempdir
 
 tableName = "Films-"
-tableNameFree = "Films-free"
 translate = boto3.client(service_name='translate', region_name='us-east-1', use_ssl=True)
 polly = boto3.client(service_name='polly', region_name='us-east-1', use_ssl=True)
 # Flip this boolean to switch between testing or deployment mode
