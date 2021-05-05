@@ -154,6 +154,11 @@ def getMovies(table):
 @cross_origin()
 def translation():
     curGroupId = request.args.get(groupId)
+    curLang = request.args.get('lang')
+    if curLang is not None:
+        curLang = curLang.lower()
+    else:
+        curLang = "zh"
     
     if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
         table = dynamodb.Table(tableName + curGroupId)
@@ -168,7 +173,7 @@ def translation():
             for key in cMovieJSON:
                 #print("%s | %s" %(key, cMovieJSON[key])
                 value = cMovieJSON[key]
-                translatedResult = translate.translate_text(Text=str(value), SourceLanguageCode="en", TargetLanguageCode="zh")
+                translatedResult = translate.translate_text(Text=str(value), SourceLanguageCode="en", TargetLanguageCode=curLang)
                 translatedText = translatedResult.get('TranslatedText')
                 #print('TranslatedText: ' + translatedText)
                 cMovieJSON[key] = translatedText
