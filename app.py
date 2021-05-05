@@ -13,11 +13,16 @@ from contextlib import closing
 import os
 from tempfile import gettempdir
 
-tableName = "Films"
+tableName = "Films-"
+tableNameFree = "Films-free"
 translate = boto3.client(service_name='translate', region_name='us-east-1', use_ssl=True)
 polly = boto3.client(service_name='polly', region_name='us-east-1', use_ssl=True)
 # Flip this boolean to switch between testing or deployment mode
 testing = False
+groupId = 'groupId'
+groupIdFree = 'free'
+groupIdPaid = 'paid'
+
 
 dynamodb = None
 if testing:
@@ -44,6 +49,18 @@ def getItemJSON(data):
 def home():
     welcomeStr = "Welcome to the home page."
     return Response(welcomeStr, status=200, mimetype='text/plain')
+
+@app.route('/key', methods=['GET'])
+@cross_origin()
+def getKey():
+    curGroupId = request.args.get(groupId)
+    if curGroupId is not None:
+        if curGroupId == groupIdPaid:
+            return Response("MMvlWv4gPh9kniWJfjMPJ5T5h0s0ep1D2CLjqDSK", status=200, mimetype='text/plain')
+        if curGroupId == groupIdFree:
+            return Response("4TIovpYOER55GGsAw7lyX9c7su4qmsMH3n1AyZm1", status=200, mimetype='text/plain')
+    invalidGroupIdText = json.dumps({"message" : "Invalid groupId, no x-api-key retrieved."})
+    return Response(invalidGroupIdText, status=200, mimetype='application/json')
 
 
 # To test:
@@ -83,28 +100,34 @@ def find():
 @app.route('/table')
 @cross_origin()
 def getTable():
-    table = dynamodb.Table(tableName)
-    year = request.args.get('year')
-    movie = request.args.get('movie')
+    curGroupId = request.args.get(groupId)
     
-    # If year is not None, get all movies
-    if year is not None:
-        if movie is not None:
-
-            response = table.query(
-                ProjectionExpression="#yr, title, info.genres, info.actors[0]",
-                ExpressionAttributeNames={"#yr": "year"},
-                KeyConditionExpression=Key('year').eq(year) & Key('title').begins_with(movie)
-            )
-            return Response(json.dumps(response['Items'], use_decimal=True), status=200, mimetype='application/json')
+    if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
+        table = dynamodb.Table(tableName + curGroupId)  
+        
+        year = request.args.get('year')
+        movie = request.args.get('movie')
+        
+        # If year is not None, get all movies
+        if year is not None:
+            if movie is not None:
+                response = table.query(
+                    ProjectionExpression="#yr, title, info.genres, info.actors[0]",
+                    ExpressionAttributeNames={"#yr": "year"},
+                    KeyConditionExpression=Key('year').eq(year) & Key('title').begins_with(movie)
+                )
+                return Response(json.dumps(response['Items'], use_decimal=True), status=200, mimetype='application/json')
+            else:
+                year = int(year)
+                response = table.query(
+                    KeyConditionExpression=Key('year').eq(year)
+                )
+                return Response(json.dumps(response['Items'], use_decimal=True), status=200, mimetype='application/json')
         else:
-            year = int(year)
-            response = table.query(
-                KeyConditionExpression=Key('year').eq(year)
-            )
-            return Response(json.dumps(response['Items'], use_decimal=True), status=200, mimetype='application/json')
-    else:
-        return Response(getMovies(table), status=200, mimetype='application/json')
+            return Response(getMovies(table), status=200, mimetype='application/json')
+    invalidGroupIdText = json.dumps({"message" : "Invalid groupId, no table retrieved."})
+    return Response(invalidGroupIdText, status=200, mimetype='application/json')
+    
 
 # Returns all the movies, essentially (1900-2025 range)
 def getMovies(table):
@@ -131,53 +154,64 @@ def getMovies(table):
 @app.route('/translate')
 @cross_origin()
 def translation():
-    table = dynamodb.Table(tableName)
-    movies = getMovies(table)
+    curGroupId = request.args.get(groupId)
     
-    moviesJson = json.loads(movies)
-    #print(movies)
-    #print(moviesJson)
-    
-    for cMovieJSON in moviesJson:
-        #print(cMovieJSON)
-        for key in cMovieJSON:
-            #print("%s | %s" %(key, cMovieJSON[key]))
-            value = cMovieJSON[key]
-            translatedResult = translate.translate_text(Text=str(value), SourceLanguageCode="en", TargetLanguageCode="zh")
-            translatedText = translatedResult.get('TranslatedText')
-            #print('TranslatedText: ' + translatedText)
-            cMovieJSON[key] = translatedText
-            
-    #print(moviesJson)
+    if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
+        table = dynamodb.Table(tableName + curGroupId)
+        
+        movies = getMovies(table)
+        moviesJson = json.loads(movies)
+        #print(movies)
+        #print(moviesJson)
+        
+        for cMovieJSON in moviesJson:
+            #print(cMovieJSON)
+            for key in cMovieJSON:
+                #print("%s | %s" %(key, cMovieJSON[key])
+                value = cMovieJSON[key]
+                translatedResult = translate.translate_text(Text=str(value), SourceLanguageCode="en", TargetLanguageCode="zh")
+                translatedText = translatedResult.get('TranslatedText')
+                #print('TranslatedText: ' + translatedText)
+                cMovieJSON[key] = translatedText
+        #print(moviesJson)
 
-    jsonStr = json.dumps(moviesJson, ensure_ascii=False).encode('utf8')
-    #print(jsonStr)
-    #print(json.loads(jsonStr))
+        jsonStr = json.dumps(moviesJson, ensure_ascii=False).encode('utf8')
+        #print(jsonStr)
+        #print(json.loads(jsonStr))
     
-    return Response(jsonStr, status=200, mimetype='application/json')
+        return Response(jsonStr, status=200, mimetype='application/json')
+    invalidGroupIdText = json.dumps({"message" : "Invalid groupId, no table translation retrieved."})
+    return Response(invalidGroupIdText, status=200, mimetype='application/json')
 
 @app.route('/polly')
 @cross_origin()
 def runPolly():
-    table = dynamodb.Table(tableName)
-    movies = getMovies(table)
-    try:
-        print(os.getcwd())
-        print(os.listdir())
-        response = polly.synthesize_speech(Text=movies, OutputFormat="mp3", VoiceId="Joanna")
-        with open('speech.mp3', 'wb') as f:
-            f.write(response['AudioStream'].read())
-            f.close()
+    curGroupId = request.args.get(groupId)
+    
+    if curGroupId is not None and (curGroupId==groupIdFree or curGroupId==groupIdPaid):
+        table = dynamodb.Table(tableName + curGroupId)
+        
+        movies = getMovies(table)
         try:
-            return send_file("speech.mp3", as_attachment=True)
-        except Exception as e:
-            print(e)
-        #file = open('speech.mp3', 'wb')
-        #file.write(response['AudioStream'].read())
-        #file.close()
-    except(BotoCoreError, ClientError) as error:
-        print(error)       
-    return Response({'message' : 'Did not synthesize speech.'}, status=200, mimetype='application/json')
+            print(os.getcwd())
+            print(os.listdir())
+            response = polly.synthesize_speech(Text=movies, OutputFormat="mp3", VoiceId="Joanna")
+            with open('speech.mp3', 'wb') as f:
+                f.write(response['AudioStream'].read())
+                f.close()
+            try:
+                return send_file("speech.mp3", as_attachment=True)
+            except Exception as e:
+                print(e)
+            #file = open('speech.mp3', 'wb')
+            #file.write(response['AudioStream'].read())
+            #file.close()
+        except(BotoCoreError, ClientError) as error:
+            print(error)       
+        return Response(json.dumps({'message' : 'Error: Did not synthesize speech.'}), status=200, mimetype='application/json')
+    invalidGroupIdText = json.dumps({"message" : "Invalid groupId, no table speech retrieved."})
+    return Response(invalidGroupIdText, status=200, mimetype='application/json')
+
 
 @app.route('/getTable')
 @cross_origin()
