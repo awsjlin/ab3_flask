@@ -7,6 +7,18 @@
     {
         "groupId" : "paid",
         "apiKey" : "4TIovpYOER55GGsAw7lyX9c7su4qmsMH3n1AyZm1"
+    },
+    {
+        "groupId" : "tenant1",
+        "apiKey" : ""
+    },
+    {
+        "groupId" : "tenant2",
+        "apiKey" : ""
+    },
+    {
+        "groupId" : "tenant3",
+        "apiKey" : ""
     }
  ]
 }
